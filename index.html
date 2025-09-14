@@ -1,0 +1,228 @@
+<!--
+Shell Shokers - Starter (single-file)
+How to use:
+ 1) Save this file as index.html
+ 2) Open it in a browser (works locally). For GitHub Pages: push to a repo and enable Pages on main branch.
+ 3) Files included: Phaser 3 via CDN, simple placeholder textures generated at runtime.
+
+Features included:
+ - Player (egg) that moves with WASD or arrow keys
+ - Aim with mouse, click to shoot bullets
+ - Simple enemy spawner (moves toward player)
+ - Basic collision and score
+ - Responsive canvas
+
+Future improvements you can ask me for:
+ - Multiplayer (websocket / WebRTC)
+ - Art/animations and sprite sheets
+ - Weapon types, reloads, pickups
+ - Lobby, matchmaking, account system via GitHub OAuth
+ - Build pipeline, bundler (vite/webpack) and tests
+-->
+
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Shell Shokers - Starter</title>
+  <style>
+    html,body { height:100%; margin:0; background:#0b1020; }
+    #gameDiv { width:100%; height:100vh; display:flex; align-items:center; justify-content:center; }
+    .ui { position: absolute; top:8px; left:8px; color:#fff; font-family: system-ui, Arial; z-index:10 }
+    .ui button{ margin-left:8px }
+  </style>
+</head>
+<body>
+  <div id="gameDiv"></div>
+  <div class="ui">
+    <span id="score">Score: 0</span>
+    <button id="restart">Restart</button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+  <script>
+    // Configuration
+    const WIDTH = Math.min(window.innerWidth, 1280);
+    const HEIGHT = Math.min(window.innerHeight, 720);
+
+    const config = {
+      type: Phaser.AUTO,
+      width: WIDTH,
+      height: HEIGHT,
+      parent: 'gameDiv',
+      backgroundColor: '#0b1020',
+      physics: {
+        default: 'arcade',
+        arcade: { debug: false }
+      },
+      scene: { preload, create, update }
+    };
+
+    const game = new Phaser.Game(config);
+
+    let player, cursors, bullets, enemies, lastFired = 0, score = 0;
+
+    function preload() {
+      // We'll create simple textures at runtime
+    }
+
+    function create() {
+      // Create textures: egg, bullet, enemy
+      const g = this.make.graphics({ x: 0, y: 0, add: false });
+
+      // Egg (player) - circle with outline
+      g.clear();
+      g.fillStyle(0xffffdd, 1);
+      g.fillEllipse(32, 24, 40, 48);
+      g.lineStyle(4, 0x333333, 1);
+      g.strokeEllipse(32, 24, 40, 48);
+      g.generateTexture('egg', 64, 48);
+
+      // Bullet
+      g.clear();
+      g.fillStyle(0xffee66, 1);
+      g.fillRect(0, 0, 6, 12);
+      g.generateTexture('bullet', 6, 12);
+
+      // Enemy (cracked egg)
+      g.clear();
+      g.fillStyle(0xff9999, 1);
+      g.fillEllipse(16, 16, 26, 32);
+      g.lineStyle(2, 0x770000, 1);
+      g.strokeTriangle(6, 8, 26, 8, 16, 24);
+      g.generateTexture('enemy', 32, 32);
+
+      // Player
+      player = this.physics.add.sprite(WIDTH/2, HEIGHT/2, 'egg');
+      player.setCollideWorldBounds(true);
+      player.setDrag(600, 600);
+      player.setMaxVelocity(300);
+
+      // Bullets group
+      bullets = this.physics.add.group({ classType: Phaser.Physics.Arcade.Image, runChildUpdate: true });
+
+      // Enemies
+      enemies = this.physics.add.group();
+
+      // Controls
+      cursors = this.input.keyboard.createCursorKeys();
+      this.input.keyboard.addKeys('W,A,S,D');
+
+      // Spawn enemies repeatedly
+      this.time.addEvent({ delay: 1500, callback: spawnEnemy, callbackScope: this, loop: true });
+
+      // Collisions
+      this.physics.add.overlap(bullets, enemies, onBulletHitEnemy, null, this);
+      this.physics.add.overlap(player, enemies, onPlayerHit, null, this);
+
+      // Mouse shoot
+      this.input.on('pointerdown', (pointer) => shoot(pointer, this));
+
+      // UI
+      document.getElementById('restart').onclick = () => restart(this);
+
+      updateScore(0);
+    }
+
+    function update(time) {
+      // Movement: WASD + arrows
+      const keys = this.input.keyboard.addKeys('W,A,S,D');
+      const left = keys.A.isDown || cursors.left.isDown;
+      const right = keys.D.isDown || cursors.right.isDown;
+      const up = keys.W.isDown || cursors.up.isDown;
+      const down = keys.S.isDown || cursors.down.isDown;
+
+      const speed = 220;
+      let vx = 0, vy = 0;
+      if (left) vx -= speed;
+      if (right) vx += speed;
+      if (up) vy -= speed;
+      if (down) vy += speed;
+      player.setVelocity(vx, vy);
+
+      // Rotate to pointer
+      const pointer = this.input.activePointer;
+      const angle = Phaser.Math.Angle.Between(player.x, player.y, pointer.worldX, pointer.worldY);
+      player.setRotation(angle + Math.PI/2);
+
+      // Enemies move toward player
+      enemies.children.iterate(e => {
+        if (!e) return;
+        this.physics.moveToObject(e, player, 80);
+      });
+
+      // Destroy bullets offscreen
+      bullets.children.iterate(b => {
+        if (!b) return;
+        if (b.x < -50 || b.x > WIDTH+50 || b.y < -50 || b.y > HEIGHT+50) b.destroy();
+      });
+    }
+
+    function shoot(pointer, scene) {
+      const now = scene.time.now;
+      if (now - lastFired < 200) return; // fire rate
+      lastFired = now;
+
+      const bullet = bullets.create(player.x, player.y, 'bullet');
+      const angle = Phaser.Math.Angle.Between(player.x, player.y, pointer.worldX, pointer.worldY);
+      const speed = 600;
+      scene.physics.velocityFromRotation(angle, speed, bullet.body.velocity);
+      bullet.setRotation(angle + Math.PI/2);
+      bullet.setCollideWorldBounds(false);
+    }
+
+    function spawnEnemy() {
+      const side = Phaser.Math.Between(0,3);
+      let x, y;
+      if (side === 0) { x = -30; y = Phaser.Math.Between(0, HEIGHT); }
+      else if (side === 1) { x = WIDTH + 30; y = Phaser.Math.Between(0, HEIGHT); }
+      else if (side === 2) { x = Phaser.Math.Between(0, WIDTH); y = -30; }
+      else { x = Phaser.Math.Between(0, WIDTH); y = HEIGHT + 30; }
+
+      const e = enemies.create(x, y, 'enemy');
+      e.setCircle(14);
+      e.setDepth(1);
+      e.hp = 1;
+    }
+
+    function onBulletHitEnemy(bullet, enemy) {
+      bullet.destroy();
+      enemy.hp -= 1;
+      if (enemy.hp <= 0) {
+        enemy.destroy();
+        updateScore(10);
+      }
+    }
+
+    function onPlayerHit(playerObj, enemy) {
+      // simple knockback + reduce score
+      enemy.destroy();
+      updateScore(-20);
+      // flash effect
+      const cam = playerObj.scene.cameras.main;
+      cam.flash(200, 255, 80, 80);
+    }
+
+    function updateScore(delta) {
+      score = Math.max(0, score + delta);
+      document.getElementById('score').innerText = 'Score: ' + score;
+    }
+
+    function restart(scene) {
+      // remove all enemies and bullets
+      enemies.clear(true, true);
+      bullets.clear(true, true);
+      player.x = WIDTH/2; player.y = HEIGHT/2;
+      score = 0; updateScore(0);
+    }
+
+    // Resize handling
+    window.addEventListener('resize', () => {
+      const w = Math.min(window.innerWidth, 1280);
+      const h = Math.min(window.innerHeight, 720);
+      game.scale.resize(w, h);
+    });
+  </script>
+</body>
+</html>
