@@ -6,7 +6,7 @@
   <style>
     body {
       margin: 0;
-      background: #111;
+      background: linear-gradient(to bottom, #222, #111);
       color: white;
       text-align: center;
       font-family: Arial, sans-serif;
@@ -18,14 +18,20 @@
       display: none;
       margin: 20px auto;
       border: 3px solid white;
-      background: linear-gradient(#222, #000);
+      background: #282828;
+      box-shadow: 0 0 20px black;
     }
   </style>
 </head>
 <body>
   <div id="menu">
-    <h1>Shell Shokers 2D</h1>
+    <h1>🥚 Shell Shokers 2D</h1>
     <input id="username" placeholder="Pseudo">
+    <br><br>
+    <select id="mode">
+      <option value="ffa">Tous contre tous</option>
+      <option value="teams">Rouge vs Bleu</option>
+    </select>
     <br><br>
     <select id="map">
       <option value="map1">Map 1</option>
@@ -42,9 +48,10 @@
 
   <script>
     let canvas, ctx;
-    let player, bots = [];
+    let player, bots = [], bullets = [];
     let keys = {};
     let currentMap = [];
+    let mode = "ffa";
 
     function startGame(){
       document.getElementById("menu").style.display="none";
@@ -53,16 +60,21 @@
       canvas.style.display="block";
 
       const mapChoice = document.getElementById("map").value;
+      mode = document.getElementById("mode").value;
       currentMap = maps[mapChoice];
 
-      // joueur
-      player = {x:100,y:500,w:30,h:30,color:"white",vx:0,vy:0,onGround:false};
+      // joueur principal
+      player = {x:100,y:500,w:30,h:30,color:"white",vx:0,vy:0,onGround:false,hp:100,team:"white"};
 
-      // 2 bots rouges
-      bots = [
-        {x:400,y:500,w:30,h:30,color:"red",vx:2,vy:0,onGround:false},
-        {x:600,y:500,w:30,h:30,color:"red",vx:-2,vy:0,onGround:false}
-      ];
+      // bots selon mode
+      bots = [];
+      if(mode==="ffa"){
+        bots.push({x:400,y:500,w:30,h:30,color:"red",vx:2,vy:0,onGround:false,hp:100,team:"red"});
+        bots.push({x:600,y:500,w:30,h:30,color:"blue",vx:-2,vy:0,onGround:false,hp:100,team:"blue"});
+      } else {
+        bots.push({x:400,y:500,w:30,h:30,color:"red",vx:2,vy:0,onGround:false,hp:100,team:"red"});
+        bots.push({x:600,y:500,w:30,h:30,color:"red",vx:-2,vy:0,onGround:false,hp:100,team:"red"});
+      }
 
       window.addEventListener("keydown",e=>keys[e.key]=true);
       window.addEventListener("keyup",e=>keys[e.key]=false);
@@ -76,36 +88,33 @@
       const jump = -10;
 
       if(isPlayer){
-        // gauche/droite
         if(keys["ArrowLeft"] || keys["a"]) entity.vx = -speed;
         else if(keys["ArrowRight"] || keys["d"]) entity.vx = speed;
         else entity.vx = 0;
 
-        // saut
         if((keys["ArrowUp"] || keys["w"]) && entity.onGround){
           entity.vy = jump;
           entity.onGround = false;
         }
+
+        if(keys[" "]){
+          shoot(entity);
+          keys[" "] = false;
+        }
       } else {
-        // bots IA simple : rebond gauche/droite
         if(entity.x < 0 || entity.x+entity.w > canvas.width){
           entity.vx *= -1;
         }
-        // saut aléatoire
         if(entity.onGround && Math.random()<0.01){
           entity.vy = jump;
           entity.onGround=false;
         }
       }
 
-      // appliquer gravité
       entity.vy += gravity;
-
-      // déplacement
       entity.x += entity.vx;
       entity.y += entity.vy;
 
-      // collisions plateformes
       entity.onGround = false;
       currentMap.forEach(p=>{
         if(entity.x < p.x+p.w &&
@@ -120,29 +129,80 @@
       });
     }
 
+    function shoot(entity){
+      bullets.push({
+        x: entity.x+entity.w/2,
+        y: entity.y+entity.h/2,
+        r:5,
+        color: entity.color,
+        vx: entity.color==="red" ? -5 : 5,
+        vy: 0,
+        team: entity.team
+      });
+    }
+
+    function updateBullets(){
+      bullets.forEach((b,i)=>{
+        b.x += b.vx;
+        b.y += b.vy;
+
+        if(b.x<0 || b.x>canvas.width) bullets.splice(i,1);
+
+        [...bots,player].forEach(e=>{
+          if(e!==undefined && e.hp>0 && b.team!==e.team &&
+             b.x > e.x && b.x < e.x+e.w &&
+             b.y > e.y && b.y < e.y+e.h){
+            e.hp -= 20;
+            bullets.splice(i,1);
+          }
+        });
+      });
+    }
+
     function draw(){
       ctx.clearRect(0,0,canvas.width,canvas.height);
 
       // plateformes
-      ctx.fillStyle="gray";
       currentMap.forEach(p=>{
+        ctx.fillStyle="#666";
         ctx.fillRect(p.x,p.y,p.w,p.h);
       });
 
       // joueur
-      ctx.fillStyle=player.color;
-      ctx.fillRect(player.x,player.y,player.w,player.h);
+      drawEntity(player);
 
       // bots
-      bots.forEach(b=>{
+      bots.forEach(b=>drawEntity(b));
+
+      // balles
+      bullets.forEach(b=>{
+        ctx.beginPath();
+        ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
         ctx.fillStyle=b.color;
-        ctx.fillRect(b.x,b.y,b.w,b.h);
+        ctx.fill();
       });
+
+      // HUD
+      ctx.fillStyle="white";
+      ctx.fillText("HP: "+player.hp,20,20);
+    }
+
+    function drawEntity(e){
+      ctx.beginPath();
+      ctx.arc(e.x+e.w/2,e.y+e.h/2,e.w/2,0,Math.PI*2);
+      ctx.fillStyle=e.color;
+      ctx.fill();
     }
 
     function gameLoop(){
+      if(player.hp<=0){
+        alert("Game Over!");
+        return;
+      }
+
       physics(player,true);
       bots.forEach(b=>physics(b));
+      updateBullets();
       draw();
       requestAnimationFrame(gameLoop);
     }
