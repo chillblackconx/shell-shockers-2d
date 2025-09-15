@@ -15,7 +15,7 @@
       margin-top: 50px;
     }
     canvas {
-      background: #333;
+      background: linear-gradient(#1a1a1a, #000);
       display: none;
       margin: 20px auto;
       border: 3px solid white;
@@ -47,8 +47,8 @@
 
   <script>
     let canvas, ctx;
-    let player = {x:100,y:100,w:20,h:20,color:"white",hp:100};
-    let enemies = [];
+    let player = {x:100,y:500,w:30,h:30,color:"white",vx:0,vy:0,onGround:false};
+    let keys = {};
     let currentMap = [];
 
     function startGame(){
@@ -60,33 +60,69 @@
       const mapChoice = document.getElementById("map").value;
       currentMap = maps[mapChoice];
 
-      // spawn bots
-      for(let i=0;i<3;i++){
-        enemies.push({x:200+100*i,y:200,w:20,h:20,color:"red",hp:100});
-      }
+      // écoute clavier
+      window.addEventListener("keydown",e=>keys[e.key]=true);
+      window.addEventListener("keyup",e=>keys[e.key]=false);
 
       gameLoop();
     }
 
-    function gameLoop(){
+    function updatePlayer(){
+      const speed = 3;
+      const gravity = 0.5;
+      const jump = -10;
+
+      // gauche/droite
+      if(keys["ArrowLeft"] || keys["a"]) player.vx = -speed;
+      else if(keys["ArrowRight"] || keys["d"]) player.vx = speed;
+      else player.vx = 0;
+
+      // saut
+      if((keys["ArrowUp"] || keys["w"]) && player.onGround){
+        player.vy = jump;
+        player.onGround = false;
+      }
+
+      // appliquer gravité
+      player.vy += gravity;
+
+      // déplacement
+      player.x += player.vx;
+      player.y += player.vy;
+
+      // collisions avec plateformes
+      player.onGround = false;
+      currentMap.forEach(p=>{
+        if(player.x < p.x+p.w &&
+           player.x+player.w > p.x &&
+           player.y+player.h < p.y+player.h &&
+           player.y+player.h > p.y &&
+           player.vy >= 0){
+          // corrige position au-dessus du bloc
+          player.y = p.y - player.h;
+          player.vy = 0;
+          player.onGround = true;
+        }
+      });
+    }
+
+    function draw(){
       ctx.clearRect(0,0,canvas.width,canvas.height);
 
-      // dessiner map
+      // map
       ctx.fillStyle="gray";
       currentMap.forEach(p=>{
         ctx.fillRect(p.x,p.y,p.w,p.h);
       });
 
-      // dessiner joueur
+      // joueur
       ctx.fillStyle=player.color;
       ctx.fillRect(player.x,player.y,player.w,player.h);
+    }
 
-      // dessiner ennemis
-      enemies.forEach(e=>{
-        ctx.fillStyle=e.color;
-        ctx.fillRect(e.x,e.y,e.w,e.h);
-      });
-
+    function gameLoop(){
+      updatePlayer();
+      draw();
       requestAnimationFrame(gameLoop);
     }
   </script>
