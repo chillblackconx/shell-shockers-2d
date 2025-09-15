@@ -1,241 +1,94 @@
-<!--
-Shell Shokers - Starter (single-file)
-How to use:
- 1) Save this file as index.html
- 2) Open it in a browser (works locally). For GitHub Pages: push to a repo and enable Pages on main branch.
-
-Now includes:
- - Player with HP bar (life system)
- - Pause/Resume button
- - Bigger map with camera following the player
- - Same WASD + mouse shooting
--->
-
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Shell Shokers - Starter</title>
+  <meta charset="UTF-8">
+  <title>Shell Shokers 2D</title>
   <style>
-    html,body { height:100%; margin:0; background:#0b1020; }
-    #gameDiv { width:100%; height:100vh; display:flex; align-items:center; justify-content:center; position:relative; }
-    .ui { position: absolute; top:8px; left:8px; color:#fff; font-family: system-ui, Arial; z-index:10 }
-    .ui button{ margin-left:8px }
-    #hpBar { width:150px; height:16px; border:1px solid #fff; margin-top:6px; }
-    #hpFill { height:100%; background:#4caf50; width:100%; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: white;
+      text-align: center;
+    }
+    #menu {
+      margin-top: 50px;
+    }
+    canvas {
+      background: #333;
+      display: none;
+      margin: 20px auto;
+      border: 3px solid white;
+    }
   </style>
 </head>
 <body>
-  <div id="gameDiv"></div>
-  <div class="ui">
-    <span id="score">Score: 0</span>
-    <button id="restart">Restart</button>
-    <button id="pause">Pause</button>
-    <div id="hpBar"><div id="hpFill"></div></div>
+  <div id="menu">
+    <h1>Shell Shokers 2D</h1>
+    <input id="username" placeholder="Pseudo">
+    <br><br>
+    <select id="mode">
+      <option value="ffa">Tous contre tous</option>
+      <option value="teams">Rouge vs Bleu</option>
+    </select>
+    <br><br>
+    <select id="map">
+      <option value="map1">Map 1</option>
+      <option value="map2">Map 2</option>
+    </select>
+    <br><br>
+    <button onclick="startGame()">Jouer</button>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <!-- Charger les maps -->
+  <script src="maps.html"></script>
+
   <script>
-    // Configuration
-    const WIDTH = 1280;
-    const HEIGHT = 720;
-    const MAP_SIZE = 2000; // big map
+    let canvas, ctx;
+    let player = {x:100,y:100,w:20,h:20,color:"white",hp:100};
+    let enemies = [];
+    let currentMap = [];
 
-    const config = {
-      type: Phaser.AUTO,
-      width: WIDTH,
-      height: HEIGHT,
-      parent: 'gameDiv',
-      backgroundColor: '#0b1020',
-      physics: {
-        default: 'arcade',
-        arcade: { debug: false }
-      },
-      scene: { preload, create, update }
-    };
+    function startGame(){
+      document.getElementById("menu").style.display="none";
+      canvas = document.getElementById("gameCanvas");
+      ctx = canvas.getContext("2d");
+      canvas.style.display="block";
 
-    const game = new Phaser.Game(config);
+      const mapChoice = document.getElementById("map").value;
+      currentMap = maps[mapChoice];
 
-    let player, cursors, bullets, enemies, lastFired = 0, score = 0;
-    let hp = 100, hpMax = 100, isPaused = false;
+      // spawn bots
+      for(let i=0;i<3;i++){
+        enemies.push({x:200+100*i,y:200,w:20,h:20,color:"red",hp:100});
+      }
 
-    function preload() {}
-
-    function create() {
-      // Map background
-      const g = this.add.graphics();
-      g.fillStyle(0x1a1f3a, 1);
-      g.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
-
-      // Create textures: egg, bullet, enemy
-      const g2 = this.make.graphics({ x: 0, y: 0, add: false });
-
-      g2.clear();
-      g2.fillStyle(0xffffdd, 1);
-      g2.fillEllipse(32, 24, 40, 48);
-      g2.lineStyle(4, 0x333333, 1);
-      g2.strokeEllipse(32, 24, 40, 48);
-      g2.generateTexture('egg', 64, 48);
-
-      g2.clear();
-      g2.fillStyle(0xffee66, 1);
-      g2.fillRect(0, 0, 6, 12);
-      g2.generateTexture('bullet', 6, 12);
-
-      g2.clear();
-      g2.fillStyle(0xff9999, 1);
-      g2.fillEllipse(16, 16, 26, 32);
-      g2.lineStyle(2, 0x770000, 1);
-      g2.strokeTriangle(6, 8, 26, 8, 16, 24);
-      g2.generateTexture('enemy', 32, 32);
-
-      // Player
-      player = this.physics.add.sprite(MAP_SIZE/2, MAP_SIZE/2, 'egg');
-      player.setCollideWorldBounds(true);
-      player.setDrag(600, 600);
-      player.setMaxVelocity(300);
-
-      // Camera follows player
-      this.cameras.main.setBounds(0, 0, MAP_SIZE, MAP_SIZE);
-      this.physics.world.setBounds(0, 0, MAP_SIZE, MAP_SIZE);
-      this.cameras.main.startFollow(player);
-
-      // Groups
-      bullets = this.physics.add.group({ classType: Phaser.Physics.Arcade.Image, runChildUpdate: true });
-      enemies = this.physics.add.group();
-
-      // Controls
-      cursors = this.input.keyboard.createCursorKeys();
-      this.input.keyboard.addKeys('W,A,S,D');
-
-      // Spawns
-      this.time.addEvent({ delay: 1500, callback: spawnEnemy, callbackScope: this, loop: true });
-
-      // Collisions
-      this.physics.add.overlap(bullets, enemies, onBulletHitEnemy, null, this);
-      this.physics.add.overlap(player, enemies, onPlayerHit, null, this);
-
-      // Mouse shoot
-      this.input.on('pointerdown', (pointer) => shoot(pointer, this));
-
-      // UI buttons
-      document.getElementById('restart').onclick = () => restart(this);
-      document.getElementById('pause').onclick = () => togglePause(this);
-
-      updateScore(0);
-      updateHP(0);
+      gameLoop();
     }
 
-    function update(time) {
-      if (isPaused) return;
+    function gameLoop(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
 
-      const keys = this.input.keyboard.addKeys('W,A,S,D');
-      const left = keys.A.isDown || cursors.left.isDown;
-      const right = keys.D.isDown || cursors.right.isDown;
-      const up = keys.W.isDown || cursors.up.isDown;
-      const down = keys.S.isDown || cursors.down.isDown;
-
-      const speed = 220;
-      let vx = 0, vy = 0;
-      if (left) vx -= speed;
-      if (right) vx += speed;
-      if (up) vy -= speed;
-      if (down) vy += speed;
-      player.setVelocity(vx, vy);
-
-      const pointer = this.input.activePointer;
-      const angle = Phaser.Math.Angle.Between(player.x, player.y, pointer.worldX, pointer.worldY);
-      player.setRotation(angle + Math.PI/2);
-
-      enemies.children.iterate(e => {
-        if (!e) return;
-        this.physics.moveToObject(e, player, 80);
+      // dessiner map
+      ctx.fillStyle="gray";
+      currentMap.forEach(p=>{
+        ctx.fillRect(p.x,p.y,p.w,p.h);
       });
 
-      bullets.children.iterate(b => {
-        if (!b) return;
-        if (b.x < -50 || b.x > MAP_SIZE+50 || b.y < -50 || b.y > MAP_SIZE+50) b.destroy();
+      // dessiner joueur
+      ctx.fillStyle=player.color;
+      ctx.fillRect(player.x,player.y,player.w,player.h);
+
+      // dessiner ennemis
+      enemies.forEach(e=>{
+        ctx.fillStyle=e.color;
+        ctx.fillRect(e.x,e.y,e.w,e.h);
       });
+
+      requestAnimationFrame(gameLoop);
     }
-
-    function shoot(pointer, scene) {
-      if (isPaused) return;
-      const now = scene.time.now;
-      if (now - lastFired < 200) return;
-      lastFired = now;
-
-      const bullet = bullets.create(player.x, player.y, 'bullet');
-      const angle = Phaser.Math.Angle.Between(player.x, player.y, pointer.worldX, pointer.worldY);
-      const speed = 600;
-      scene.physics.velocityFromRotation(angle, speed, bullet.body.velocity);
-      bullet.setRotation(angle + Math.PI/2);
-    }
-
-    function spawnEnemy() {
-      const side = Phaser.Math.Between(0,3);
-      let x, y;
-      if (side === 0) { x = -30; y = Phaser.Math.Between(0, MAP_SIZE); }
-      else if (side === 1) { x = MAP_SIZE + 30; y = Phaser.Math.Between(0, MAP_SIZE); }
-      else if (side === 2) { x = Phaser.Math.Between(0, MAP_SIZE); y = -30; }
-      else { x = Phaser.Math.Between(0, MAP_SIZE); y = MAP_SIZE + 30; }
-
-      const e = enemies.create(x, y, 'enemy');
-      e.setCircle(14);
-      e.hp = 1;
-    }
-
-    function onBulletHitEnemy(bullet, enemy) {
-      bullet.destroy();
-      enemy.hp -= 1;
-      if (enemy.hp <= 0) {
-        enemy.destroy();
-        updateScore(10);
-      }
-    }
-
-    function onPlayerHit(playerObj, enemy) {
-      enemy.destroy();
-      updateHP(-20);
-      const cam = playerObj.scene.cameras.main;
-      cam.flash(200, 255, 80, 80);
-    }
-
-    function updateScore(delta) {
-      score = Math.max(0, score + delta);
-      document.getElementById('score').innerText = 'Score: ' + score;
-    }
-
-    function updateHP(delta) {
-      hp = Math.max(0, Math.min(hpMax, hp + delta));
-      const percent = (hp / hpMax) * 100;
-      document.getElementById('hpFill').style.width = percent + '%';
-      if (hp <= 0) {
-        // game over
-        isPaused = true;
-        alert('Game Over! Score: ' + score);
-      }
-    }
-
-    function restart(scene) {
-      enemies.clear(true, true);
-      bullets.clear(true, true);
-      player.x = MAP_SIZE/2; player.y = MAP_SIZE/2;
-      score = 0; updateScore(0);
-      hp = hpMax; updateHP(0);
-      isPaused = false;
-    }
-
-    function togglePause(scene) {
-      isPaused = !isPaused;
-      document.getElementById('pause').innerText = isPaused ? 'Resume' : 'Pause';
-    }
-
-    window.addEventListener('resize', () => {
-      const w = Math.min(window.innerWidth, 1280);
-      const h = Math.min(window.innerHeight, 720);
-      game.scale.resize(w, h);
-    });
   </script>
 </body>
 </html>
