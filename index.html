@@ -6,19 +6,19 @@
   <style>
     body {
       margin: 0;
-      font-family: Arial, sans-serif;
       background: #111;
       color: white;
       text-align: center;
+      font-family: Arial, sans-serif;
     }
     #menu {
       margin-top: 50px;
     }
     canvas {
-      background: linear-gradient(#1a1a1a, #000);
       display: none;
       margin: 20px auto;
       border: 3px solid white;
+      background: linear-gradient(#222, #000);
     }
   </style>
 </head>
@@ -26,11 +26,6 @@
   <div id="menu">
     <h1>Shell Shokers 2D</h1>
     <input id="username" placeholder="Pseudo">
-    <br><br>
-    <select id="mode">
-      <option value="ffa">Tous contre tous</option>
-      <option value="teams">Rouge vs Bleu</option>
-    </select>
     <br><br>
     <select id="map">
       <option value="map1">Map 1</option>
@@ -47,7 +42,7 @@
 
   <script>
     let canvas, ctx;
-    let player = {x:100,y:500,w:30,h:30,color:"white",vx:0,vy:0,onGround:false};
+    let player, bots = [];
     let keys = {};
     let currentMap = [];
 
@@ -60,48 +55,67 @@
       const mapChoice = document.getElementById("map").value;
       currentMap = maps[mapChoice];
 
-      // écoute clavier
+      // joueur
+      player = {x:100,y:500,w:30,h:30,color:"white",vx:0,vy:0,onGround:false};
+
+      // 2 bots rouges
+      bots = [
+        {x:400,y:500,w:30,h:30,color:"red",vx:2,vy:0,onGround:false},
+        {x:600,y:500,w:30,h:30,color:"red",vx:-2,vy:0,onGround:false}
+      ];
+
       window.addEventListener("keydown",e=>keys[e.key]=true);
       window.addEventListener("keyup",e=>keys[e.key]=false);
 
       gameLoop();
     }
 
-    function updatePlayer(){
+    function physics(entity,isPlayer=false){
       const speed = 3;
       const gravity = 0.5;
       const jump = -10;
 
-      // gauche/droite
-      if(keys["ArrowLeft"] || keys["a"]) player.vx = -speed;
-      else if(keys["ArrowRight"] || keys["d"]) player.vx = speed;
-      else player.vx = 0;
+      if(isPlayer){
+        // gauche/droite
+        if(keys["ArrowLeft"] || keys["a"]) entity.vx = -speed;
+        else if(keys["ArrowRight"] || keys["d"]) entity.vx = speed;
+        else entity.vx = 0;
 
-      // saut
-      if((keys["ArrowUp"] || keys["w"]) && player.onGround){
-        player.vy = jump;
-        player.onGround = false;
+        // saut
+        if((keys["ArrowUp"] || keys["w"]) && entity.onGround){
+          entity.vy = jump;
+          entity.onGround = false;
+        }
+      } else {
+        // bots IA simple : rebond gauche/droite
+        if(entity.x < 0 || entity.x+entity.w > canvas.width){
+          entity.vx *= -1;
+        }
+        // saut aléatoire
+        if(entity.onGround && Math.random()<0.01){
+          entity.vy = jump;
+          entity.onGround=false;
+        }
       }
 
       // appliquer gravité
-      player.vy += gravity;
+      entity.vy += gravity;
 
       // déplacement
-      player.x += player.vx;
-      player.y += player.vy;
+      entity.x += entity.vx;
+      entity.y += entity.vy;
 
-      // collisions avec plateformes
-      player.onGround = false;
+      // collisions plateformes
+      entity.onGround = false;
       currentMap.forEach(p=>{
-        if(player.x < p.x+p.w &&
-           player.x+player.w > p.x &&
-           player.y+player.h < p.y+player.h &&
-           player.y+player.h > p.y &&
-           player.vy >= 0){
-          // corrige position au-dessus du bloc
-          player.y = p.y - player.h;
-          player.vy = 0;
-          player.onGround = true;
+        if(entity.x < p.x+p.w &&
+           entity.x+entity.w > p.x &&
+           entity.y+entity.h <= p.y+10 &&
+           entity.y+entity.h >= p.y &&
+           entity.vy >= 0){
+          entity.y = p.y - entity.h;
+          entity.vy = 0;
+          entity.onGround = true;
         }
       });
     }
@@ -109,7 +123,7 @@
     function draw(){
       ctx.clearRect(0,0,canvas.width,canvas.height);
 
-      // map
+      // plateformes
       ctx.fillStyle="gray";
       currentMap.forEach(p=>{
         ctx.fillRect(p.x,p.y,p.w,p.h);
@@ -118,10 +132,17 @@
       // joueur
       ctx.fillStyle=player.color;
       ctx.fillRect(player.x,player.y,player.w,player.h);
+
+      // bots
+      bots.forEach(b=>{
+        ctx.fillStyle=b.color;
+        ctx.fillRect(b.x,b.y,b.w,b.h);
+      });
     }
 
     function gameLoop(){
-      updatePlayer();
+      physics(player,true);
+      bots.forEach(b=>physics(b));
       draw();
       requestAnimationFrame(gameLoop);
     }
