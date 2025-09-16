@@ -1,229 +1,199 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Shell Shokers 2D</title>
   <style>
-    body {
-      margin: 0;
-      background: linear-gradient(to bottom, #222, #111);
-      color: white;
-      text-align: center;
+    html,body { height:100%; margin:0; background:#0b1020; }
+    #gameDiv { width:100%; height:100vh; display:flex; align-items:center; justify-content:center; position:relative; }
+    .ui { position: absolute; top:8px; left:8px; color:#fff; font-family: system-ui, Arial; z-index:10; display:none; }
+    .ui button{ margin-left:8px }
+    #hpBar { width:150px; height:16px; border:1px solid #fff; margin-top:6px; }
+    #hpFill { height:100%; background:#4caf50; width:100%; }
+
+    /* login & death screen */
+    #login, #deathScreen {
+      position: absolute; top:0; left:0; right:0; bottom:0;
+      background: rgba(0,0,0,0.8); color:white;
+      display:flex; flex-direction:column; justify-content:center; align-items:center;
       font-family: Arial, sans-serif;
     }
-    #menu {
-      margin-top: 50px;
-    }
-    canvas {
-      display: none;
-      margin: 20px auto;
-      border: 3px solid white;
-      background: #282828;
-      box-shadow: 0 0 20px black;
-    }
+    #login input { padding:8px; font-size:16px; margin:10px; }
+    #login button, #deathScreen button { padding:10px 20px; font-size:18px; margin-top:15px; }
   </style>
 </head>
 <body>
-  <div id="menu">
-    <h1>🥚 Shell Shokers 2D</h1>
-    <input id="username" placeholder="Pseudo">
-    <br><br>
-    <select id="mode">
-      <option value="ffa">Tous contre tous</option>
-      <option value="teams">Rouge vs Bleu</option>
-    </select>
-    <br><br>
-    <select id="map">
-      <option value="map1">Map 1</option>
-      <option value="map2">Map 2</option>
-    </select>
-    <br><br>
-    <button onclick="startGame()">Jouer</button>
+  <div id="gameDiv"></div>
+
+  <!-- login screen -->
+  <div id="login">
+    <h1>Connexion</h1>
+    <p>Entre ton nom d'utilisateur :</p>
+    <input id="username" type="text" placeholder="Pseudo">
+    <button onclick="startLogin()">Valider</button>
   </div>
 
-  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <!-- in-game UI -->
+  <div class="ui" id="hud">
+    <span id="score">Score: 0</span>
+    <span id="playerName"></span>
+    <button id="restart">Restart</button>
+    <button id="pause">Pause</button>
+    <div id="hpBar"><div id="hpFill"></div></div>
+  </div>
 
-  <!-- Charger les maps -->
-  <script src="maps.html"></script>
+  <!-- death screen -->
+  <div id="deathScreen" style="display:none;">
+    <h1>Tu es mort 😵</h1>
+    <p id="finalScore"></p>
+    <button onclick="respawn()">Recommencer</button>
+  </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
   <script>
-    let canvas, ctx;
-    let player, bots = [], bullets = [];
-    let keys = {};
-    let currentMap = [];
-    let mode = "ffa";
+    // Config
+    const WIDTH = 1280, HEIGHT = 720, MAP_SIZE = 2000;
+    const config = {
+      type: Phaser.AUTO, width: WIDTH, height: HEIGHT, parent: 'gameDiv',
+      backgroundColor: '#0b1020',
+      physics: { default: 'arcade', arcade: { debug: false } },
+      scene: { preload, create, update }
+    };
+    const game = new Phaser.Game(config);
 
-    function startGame(){
-      document.getElementById("menu").style.display="none";
-      canvas = document.getElementById("gameCanvas");
-      ctx = canvas.getContext("2d");
-      canvas.style.display="block";
+    let player, cursors, bullets, enemies, lastFired = 0, score = 0;
+    let hp = 100, hpMax = 100, isPaused = false, username = "";
 
-      const mapChoice = document.getElementById("map").value;
-      mode = document.getElementById("mode").value;
-      currentMap = maps[mapChoice];
+    function preload() {}
+    function create() {
+      // map
+      const g = this.add.graphics();
+      g.fillStyle(0x1a1f3a, 1);
+      g.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
 
-      // joueur principal
-      player = {x:100,y:500,w:30,h:30,color:"white",vx:0,vy:0,onGround:false,hp:100,team:"white"};
+      // textures
+      const g2 = this.make.graphics({ x: 0, y: 0, add: false });
+      g2.clear(); g2.fillStyle(0xffffdd, 1); g2.fillEllipse(32, 24, 40, 48);
+      g2.lineStyle(4, 0x333333, 1); g2.strokeEllipse(32, 24, 40, 48);
+      g2.generateTexture('egg', 64, 48);
 
-      // bots selon mode
-      bots = [];
-      if(mode==="ffa"){
-        bots.push({x:400,y:500,w:30,h:30,color:"red",vx:2,vy:0,onGround:false,hp:100,team:"red"});
-        bots.push({x:600,y:500,w:30,h:30,color:"blue",vx:-2,vy:0,onGround:false,hp:100,team:"blue"});
-      } else {
-        bots.push({x:400,y:500,w:30,h:30,color:"red",vx:2,vy:0,onGround:false,hp:100,team:"red"});
-        bots.push({x:600,y:500,w:30,h:30,color:"red",vx:-2,vy:0,onGround:false,hp:100,team:"red"});
-      }
+      g2.clear(); g2.fillStyle(0xffee66, 1); g2.fillRect(0, 0, 6, 12);
+      g2.generateTexture('bullet', 6, 12);
 
-      window.addEventListener("keydown",e=>keys[e.key]=true);
-      window.addEventListener("keyup",e=>keys[e.key]=false);
+      g2.clear(); g2.fillStyle(0xff9999, 1); g2.fillEllipse(16, 16, 26, 32);
+      g2.lineStyle(2, 0x770000, 1); g2.strokeTriangle(6, 8, 26, 8, 16, 24);
+      g2.generateTexture('enemy', 32, 32);
 
-      gameLoop();
+      // player
+      player = this.physics.add.sprite(MAP_SIZE/2, MAP_SIZE/2, 'egg');
+      player.setCollideWorldBounds(true); player.setDrag(600, 600); player.setMaxVelocity(300);
+
+      this.cameras.main.setBounds(0, 0, MAP_SIZE, MAP_SIZE);
+      this.physics.world.setBounds(0, 0, MAP_SIZE, MAP_SIZE);
+      this.cameras.main.startFollow(player);
+
+      bullets = this.physics.add.group({ classType: Phaser.Physics.Arcade.Image, runChildUpdate: true });
+      enemies = this.physics.add.group();
+
+      cursors = this.input.keyboard.createCursorKeys();
+      this.input.keyboard.addKeys('W,A,S,D');
+
+      this.time.addEvent({ delay: 1500, callback: spawnEnemy, callbackScope: this, loop: true });
+
+      this.physics.add.overlap(bullets, enemies, onBulletHitEnemy, null, this);
+      this.physics.add.overlap(player, enemies, onPlayerHit, null, this);
+
+      this.input.on('pointerdown', (pointer) => shoot(pointer, this));
+
+      document.getElementById('restart').onclick = () => restart(this);
+      document.getElementById('pause').onclick = () => togglePause(this);
+
+      updateScore(0);
+      updateHP(0);
     }
 
-    function physics(entity,isPlayer=false){
-      const speed = 3;
-      const gravity = 0.5;
-      const jump = -10;
+    function update(time) {
+      if (isPaused) return;
+      const keys = this.input.keyboard.addKeys('W,A,S,D');
+      const left = keys.A.isDown || cursors.left.isDown;
+      const right = keys.D.isDown || cursors.right.isDown;
+      const up = keys.W.isDown || cursors.up.isDown;
+      const down = keys.S.isDown || cursors.down.isDown;
 
-      if(isPlayer){
-        if(keys["ArrowLeft"] || keys["a"]) entity.vx = -speed;
-        else if(keys["ArrowRight"] || keys["d"]) entity.vx = speed;
-        else entity.vx = 0;
+      const speed = 220; let vx = 0, vy = 0;
+      if (left) vx -= speed; if (right) vx += speed;
+      if (up) vy -= speed; if (down) vy += speed;
+      player.setVelocity(vx, vy);
 
-        if((keys["ArrowUp"] || keys["w"]) && entity.onGround){
-          entity.vy = jump;
-          entity.onGround = false;
-        }
+      const pointer = this.input.activePointer;
+      const angle = Phaser.Math.Angle.Between(player.x, player.y, pointer.worldX, pointer.worldY);
+      player.setRotation(angle + Math.PI/2);
 
-        if(keys[" "]){
-          shoot(entity);
-          keys[" "] = false;
-        }
-      } else {
-        if(entity.x < 0 || entity.x+entity.w > canvas.width){
-          entity.vx *= -1;
-        }
-        if(entity.onGround && Math.random()<0.01){
-          entity.vy = jump;
-          entity.onGround=false;
-        }
-      }
-
-      entity.vy += gravity;
-      entity.x += entity.vx;
-      entity.y += entity.vy;
-
-      entity.onGround = false;
-      currentMap.forEach(p=>{
-        if(entity.x < p.x+p.w &&
-           entity.x+entity.w > p.x &&
-           entity.y+entity.h <= p.y+10 &&
-           entity.y+entity.h >= p.y &&
-           entity.vy >= 0){
-          entity.y = p.y - entity.h;
-          entity.vy = 0;
-          entity.onGround = true;
-        }
-      });
+      enemies.children.iterate(e => { if (e) this.physics.moveToObject(e, player, 80); });
+      bullets.children.iterate(b => { if (b && (b.x<-50||b.x>MAP_SIZE+50||b.y<-50||b.y>MAP_SIZE+50)) b.destroy(); });
     }
 
-    function shoot(entity){
-      bullets.push({
-        x: entity.x+entity.w/2,
-        y: entity.y+entity.h/2,
-        r:5,
-        color: entity.color,
-        vx: entity.color==="red" ? -5 : 5,
-        vy: 0,
-        team: entity.team
-      });
+    function shoot(pointer, scene) {
+      if (isPaused) return;
+      const now = scene.time.now;
+      if (now - lastFired < 200) return;
+      lastFired = now;
+      const bullet = bullets.create(player.x, player.y, 'bullet');
+      const angle = Phaser.Math.Angle.Between(player.x, player.y, pointer.worldX, pointer.worldY);
+      scene.physics.velocityFromRotation(angle, 600, bullet.body.velocity);
+      bullet.setRotation(angle + Math.PI/2);
     }
 
-    function updateBullets(){
-      bullets.forEach((b,i)=>{
-        b.x += b.vx;
-        b.y += b.vy;
-
-        if(b.x<0 || b.x>canvas.width) bullets.splice(i,1);
-
-        [...bots,player].forEach(e=>{
-          if(e!==undefined && e.hp>0 && b.team!==e.team &&
-             b.x > e.x && b.x < e.x+e.w &&
-             b.y > e.y && b.y < e.y+e.h){
-            e.hp -= 20;
-            bullets.splice(i,1);
-          }
-        });
-      });
+    function spawnEnemy() {
+      const side = Phaser.Math.Between(0,3);
+      let x,y;
+      if (side===0){x=-30;y=Phaser.Math.Between(0,MAP_SIZE);}
+      else if(side===1){x=MAP_SIZE+30;y=Phaser.Math.Between(0,MAP_SIZE);}
+      else if(side===2){x=Phaser.Math.Between(0,MAP_SIZE);y=-30;}
+      else{x=Phaser.Math.Between(0,MAP_SIZE);y=MAP_SIZE+30;}
+      const e=enemies.create(x,y,'enemy'); e.setCircle(14); e.hp=1;
     }
 
-    function drawEntity(e){
-      // œuf (cercle)
-      ctx.beginPath();
-      ctx.arc(e.x+e.w/2, e.y+e.h/2, e.w/2, 0, Math.PI*2);
-      ctx.fillStyle = e.color;
-      ctx.fill();
+    function onBulletHitEnemy(bullet, enemy){ bullet.destroy(); enemy.hp-=1; if(enemy.hp<=0){ enemy.destroy(); updateScore(10);} }
+    function onPlayerHit(playerObj, enemy){ enemy.destroy(); updateHP(-20); playerObj.scene.cameras.main.flash(200,255,80,80); }
 
-      // barre de vie au-dessus
-      let barWidth = e.w;
-      let barHeight = 5;
-      let hpRatio = e.hp / 100;
-      ctx.fillStyle = "red";
-      ctx.fillRect(e.x, e.y - 10, barWidth, barHeight);
-      ctx.fillStyle = "lime";
-      ctx.fillRect(e.x, e.y - 10, barWidth * hpRatio, barHeight);
-
-      // pseudo joueur principal
-      if(e === player){
-        ctx.fillStyle = "white";
-        ctx.font = "12px Arial";
-        ctx.fillText(document.getElementById("username").value || "Moi", e.x, e.y - 20);
+    function updateScore(delta){ score=Math.max(0,score+delta); document.getElementById('score').innerText='Score: '+score; }
+    function updateHP(delta){
+      hp=Math.max(0,Math.min(hpMax,hp+delta));
+      document.getElementById('hpFill').style.width=(hp/hpMax*100)+'%';
+      if(hp<=0){ // mort
+        isPaused=true;
+        document.getElementById("hud").style.display="none";
+        document.getElementById("deathScreen").style.display="flex";
+        document.getElementById("finalScore").innerText="Ton score: "+score;
       }
     }
 
-    function draw(){
-      ctx.clearRect(0,0,canvas.width,canvas.height);
+    function restart(scene){
+      enemies.clear(true,true); bullets.clear(true,true);
+      player.x=MAP_SIZE/2; player.y=MAP_SIZE/2;
+      score=0; updateScore(0); hp=hpMax; updateHP(0);
+      isPaused=false;
+    }
+    function togglePause(scene){ isPaused=!isPaused; document.getElementById('pause').innerText=isPaused?'Resume':'Pause'; }
 
-      // plateformes
-      currentMap.forEach(p=>{
-        ctx.fillStyle="#666";
-        ctx.fillRect(p.x,p.y,p.w,p.h);
-      });
-
-      // joueur
-      drawEntity(player);
-
-      // bots
-      bots.forEach(b=>drawEntity(b));
-
-      // balles
-      bullets.forEach(b=>{
-        ctx.beginPath();
-        ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
-        ctx.fillStyle=b.color;
-        ctx.fill();
-      });
-
-      // HUD
-      ctx.fillStyle="white";
-      ctx.font="14px Arial";
-      ctx.fillText("HP: "+player.hp,20,20);
+    // login + respawn
+    function startLogin(){
+      const val=document.getElementById("username").value.trim();
+      if(val==="") return alert("Entre un pseudo !");
+      username=val;
+      document.getElementById("login").style.display="none";
+      document.getElementById("hud").style.display="block";
+      document.getElementById("playerName").innerText=" | Joueur: "+username;
+    }
+    function respawn(){
+      document.getElementById("deathScreen").style.display="none";
+      document.getElementById("hud").style.display="block";
+      restart(game.scene.scenes[0]);
     }
 
-    function gameLoop(){
-      if(player.hp<=0){
-        alert("Game Over!");
-        return;
-      }
-
-      physics(player,true);
-      bots.forEach(b=>physics(b));
-      updateBullets();
-      draw();
-      requestAnimationFrame(gameLoop);
-    }
+    window.addEventListener('resize',()=>{game.scale.resize(Math.min(window.innerWidth,1280),Math.min(window.innerHeight,720));});
   </script>
 </body>
 </html>
