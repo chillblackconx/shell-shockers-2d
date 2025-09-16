@@ -5,22 +5,22 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Shell Shokers 2D</title>
 <style>
-  html,body { height:100%; margin:0; background:#0b1020; }
-  #gameDiv { width:100%; height:100vh; display:flex; align-items:center; justify-content:center; position:relative; }
-  .ui { position: absolute; top:8px; left:8px; color:#fff; font-family: system-ui, Arial; z-index:10; display:none; }
-  .ui button{ margin-left:8px }
-  #hpBar { width:150px; height:16px; border:1px solid #fff; margin-top:6px; }
-  #hpFill { height:100%; background:#4caf50; width:100%; }
+html,body { height:100%; margin:0; background:#0b1020; }
+#gameDiv { width:100%; height:100vh; display:flex; align-items:center; justify-content:center; position:relative; }
+.ui { position: absolute; top:8px; left:8px; color:#fff; font-family: system-ui, Arial; z-index:10; display:none; }
+.ui button{ margin-left:8px }
+#hpBar { width:150px; height:16px; border:1px solid #fff; margin-top:6px; }
+#hpFill { height:100%; background:#4caf50; width:100%; }
 
-  /* login & death screen */
-  #login, #menu, #deathScreen {
-    position: absolute; top:0; left:0; right:0; bottom:0;
-    background: rgba(0,0,0,0.8); color:white;
-    display:flex; flex-direction:column; justify-content:center; align-items:center;
-    font-family: Arial, sans-serif;
-  }
-  #login input, #menu input { padding:8px; font-size:16px; margin:10px; }
-  #login button, #menu button, #deathScreen button { padding:10px 20px; font-size:18px; margin-top:15px; }
+/* login & death screen */
+#login, #menu, #deathScreen {
+position: absolute; top:0; left:0; right:0; bottom:0;
+background: rgba(0,0,0,0.8); color:white;
+display:flex; flex-direction:column; justify-content:center; align-items:center;
+font-family: Arial, sans-serif;
+}
+#login input, #menu input { padding:8px; font-size:16px; margin:10px; }
+#login button, #menu button, #deathScreen button { padding:10px 20px; font-size:18px; margin-top:15px; }
 </style>
 </head>
 <body>
@@ -28,33 +28,33 @@
 
 <!-- login screen -->
 <div id="login">
-  <h1>Connexion</h1>
-  <p>Entre ton nom d'utilisateur :</p>
-  <input id="username" type="text" placeholder="Pseudo">
-  <button onclick="startLogin()">Valider</button>
+<h1>Connexion</h1>
+<p>Entre ton nom d'utilisateur :</p>
+<input id="username" type="text" placeholder="Pseudo">
+<button onclick="startLogin()">Valider</button>
 </div>
 
 <!-- menu -->
 <div id="menu" style="display:none;">
-  <h1>Menu Principal</h1>
-  <label><input type="checkbox" id="invincible"> Mode invincible</label><br><br>
-  <button onclick="startGame()">Commencer la partie</button>
+<h1>Menu Principal</h1>
+<label><input type="checkbox" id="invincible"> Mode invincible</label><br><br>
+<button onclick="startGame()">Commencer la partie</button>
 </div>
 
 <!-- in-game UI -->
 <div class="ui" id="hud">
-  <span id="score">Score: 0</span>
-  <span id="playerName"></span>
-  <button id="restart">Restart</button>
-  <button id="pause">Pause</button>
-  <div id="hpBar"><div id="hpFill"></div></div>
+<span id="score">Score: 0</span>
+<span id="playerName"></span>
+<button id="restart">Restart</button>
+<button id="pause">Pause</button>
+<div id="hpBar"><div id="hpFill"></div></div>
 </div>
 
 <!-- death screen -->
 <div id="deathScreen" style="display:none;">
-  <h1>Tu es mort 😵</h1>
-  <p id="finalScore"></p>
-  <button onclick="backToMenu()">Retour au menu</button>
+<h1>Tu es mort 😵</h1>
+<p id="finalScore"></p>
+<button onclick="backToMenu()">Retour au menu</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
@@ -63,152 +63,158 @@ const WIDTH = 1280, HEIGHT = 720, MAP_SIZE = 2000;
 let player, cursors, bullets, enemies, lastFired = 0, score = 0;
 let hp = 100, hpMax = 100, isPaused = false;
 let username = "", invincible = false;
-
-// bots
 let bots = [];
 
 const config = {
-  type: Phaser.AUTO,
-  width: WIDTH,
-  height: HEIGHT,
-  parent: 'gameDiv',
-  backgroundColor: '#0b1020',
-  physics: { default: 'arcade', arcade: { debug: false } },
-  scene: { preload, create, update }
+type: Phaser.AUTO,
+width: WIDTH,
+height: HEIGHT,
+parent: 'gameDiv',
+backgroundColor: '#0b1020',
+physics: { default: 'arcade', arcade: { debug: false } },
+scene: { preload, create, update }
 };
 const game = new Phaser.Game(config);
 
 // LOGIN
 function startLogin(){
-  const val=document.getElementById("username").value.trim();
-  if(val===""){ alert("Entre un pseudo !"); return; }
-  username = val;
-  document.getElementById("login").style.display="none";
-  document.getElementById("menu").style.display="flex";
+const val=document.getElementById("username").value.trim();
+if(val===""){ alert("Entre un pseudo !"); return; }
+username = val;
+document.getElementById("login").style.display="none";
+document.getElementById("menu").style.display="flex";
 }
 
 // START GAME
 function startGame(){
-  invincible = document.getElementById("invincible").checked;
-  document.getElementById("menu").style.display="none";
-  document.getElementById("hud").style.display="block";
-  document.getElementById("playerName").innerText=" | Joueur: "+username;
-  restart(game.scene.scenes[0]);
+invincible = document.getElementById("invincible").checked;
+document.getElementById("menu").style.display="none";
+document.getElementById("hud").style.display="block";
+document.getElementById("playerName").innerText=" | Joueur: "+username;
+restart(game.scene.scenes[0]);
 }
 
 // BACK TO MENU
 function backToMenu(){
-  document.getElementById("deathScreen").style.display="none";
-  document.getElementById("menu").style.display="flex";
-  hp = hpMax;
-  score = 0;
+document.getElementById("deathScreen").style.display="none";
+document.getElementById("menu").style.display="flex";
+hp = hpMax;
+score = 0;
 }
 
 // PHASER
 function preload() {}
 function create() {
-  const g = this.add.graphics();
-  g.fillStyle(0x1a1f3a,1); g.fillRect(0,0,MAP_SIZE,MAP_SIZE);
+const g = this.add.graphics();
+g.fillStyle(0x1a1f3a,1); g.fillRect(0,0,MAP_SIZE,MAP_SIZE);
 
-  const g2 = this.make.graphics({x:0,y:0,add:false});
-  g2.clear(); g2.fillStyle(0xffffdd,1); g2.fillEllipse(32,24,40,48);
-  g2.lineStyle(4,0x333333,1); g2.strokeEllipse(32,24,40,48);
-  g2.generateTexture('egg',64,48);
-  g2.clear(); g2.fillStyle(0xffee66,1); g2.fillRect(0,0,6,12); g2.generateTexture('bullet',6,12);
-  g2.clear(); g2.fillStyle(0xff9999,1); g2.fillEllipse(16,16,26,32);
-  g2.lineStyle(2,0x770000,1); g2.strokeTriangle(6,8,26,8,16,24);
-  g2.generateTexture('enemy',32,32);
+const g2 = this.make.graphics({x:0,y:0,add:false});
+g2.clear(); g2.fillStyle(0xffffdd,1); g2.fillEllipse(32,24,40,48);
+g2.lineStyle(4,0x333333,1); g2.strokeEllipse(32,24,40,48);
+g2.generateTexture('egg',64,48);
+g2.clear(); g2.fillStyle(0xffee66,1); g2.fillRect(0,0,6,12); g2.generateTexture('bullet',6,12);
+g2.clear(); g2.fillStyle(0xff9999,1); g2.fillEllipse(16,16,26,32);
+g2.lineStyle(2,0x770000,1); g2.strokeTriangle(6,8,26,8,16,24);
+g2.generateTexture('enemy',32,32);
 
-  player = this.physics.add.sprite(MAP_SIZE/2, MAP_SIZE/2,'egg');
-  player.setCollideWorldBounds(true); player.setDrag(600,600); player.setMaxVelocity(300);
+player = this.physics.add.sprite(MAP_SIZE/2, MAP_SIZE/2,'egg');
+player.setCollideWorldBounds(true); player.setDrag(600,600); player.setMaxVelocity(300);
 
-  this.cameras.main.setBounds(0,0,MAP_SIZE,MAP_SIZE);
-  this.physics.world.setBounds(0,0,MAP_SIZE,MAP_SIZE);
-  this.cameras.main.startFollow(player);
+this.cameras.main.setBounds(0,0,MAP_SIZE,MAP_SIZE);
+this.physics.world.setBounds(0,0,MAP_SIZE,MAP_SIZE);
+this.cameras.main.startFollow(player);
 
-  bullets = this.physics.add.group({classType: Phaser.Physics.Arcade.Image, runChildUpdate:true});
-  enemies = this.physics.add.group();
+bullets = this.physics.add.group({classType: Phaser.Physics.Arcade.Image, runChildUpdate:true});
+enemies = this.physics.add.group();
 
-  cursors = this.input.keyboard.createCursorKeys();
-  this.input.keyboard.addKeys('W,A,S,D');
+cursors = this.input.keyboard.createCursorKeys();
+this.input.keyboard.addKeys('W,A,S,D');
 
-  // spawn enemies/bots
-  this.time.addEvent({delay:1500, callback:spawnEnemy, callbackScope:this, loop:true});
+// tir clavier ESPACE
+this.input.keyboard.on('keydown-SPACE',()=>shoot({worldX: player.x, worldY: player.y},this));
 
-  this.physics.add.overlap(bullets,enemies,onBulletHitEnemy,null,this);
-  this.physics.add.overlap(player,enemies,onPlayerHit,null,this);
+// spawn enemies/bots
+this.time.addEvent({delay:1500, callback:spawnEnemy, callbackScope:this, loop:true});
 
-  this.input.on('pointerdown',(pointer)=>shoot(pointer,this));
-  document.getElementById('restart').onclick = () => restart(this);
-  document.getElementById('pause').onclick = () => togglePause(this);
+this.physics.add.overlap(bullets,enemies,onBulletHitEnemy,null,this);
+this.physics.add.overlap(player,enemies,onPlayerHit,null,this);
 
-  updateScore(0); updateHP(0);
+this.input.on('pointerdown',(pointer)=>shoot(pointer,this));
+document.getElementById('restart').onclick = () => restart(this);
+document.getElementById('pause').onclick = () => togglePause(this);
+
+updateScore(0); updateHP(0);
 }
 
 function update(time){
-  if(isPaused) return;
-  const keys = this.input.keyboard.addKeys('W,A,S,D');
-  let vx=0,vy=0;
-  if(keys.A.isDown||cursors.left.isDown) vx-=220;
-  if(keys.D.isDown||cursors.right.isDown) vx+=220;
-  if(keys.W.isDown||cursors.up.isDown) vy-=220;
-  if(keys.S.isDown||cursors.down.isDown) vy+=220;
-  player.setVelocity(vx,vy);
+if(isPaused) return;
+const keys = this.input.keyboard.addKeys('W,A,S,D');
+let vx=0,vy=0;
+if(keys.A.isDown||cursors.left.isDown) vx-=220;
+if(keys.D.isDown||cursors.right.isDown) vx+=220;
+if(keys.W.isDown||cursors.up.isDown) vy-=220;
+if(keys.S.isDown||cursors.down.isDown) vy+=220;
+player.setVelocity(vx,vy);
 
-  const pointer = this.input.activePointer;
-  const angle = Phaser.Math.Angle.Between(player.x,player.y,pointer.worldX,pointer.worldY);
-  player.setRotation(angle+Math.PI/2);
+const pointer = this.input.activePointer;
+const angle = Phaser.Math.Angle.Between(player.x,player.y,pointer.worldX,pointer.worldY);
+player.setRotation(angle+Math.PI/2);
 
-  enemies.children.iterate(e=>{if(e) this.physics.moveToObject(e,player,80);});
-  bullets.children.iterate(b=>{if(b && (b.x<-50||b.x>MAP_SIZE+50||b.y<-50||b.y>MAP_SIZE+50)) b.destroy();});
+enemies.children.iterate(e=>{if(e) this.physics.moveToObject(e,player,80); if(e.text)e.update();});
+bullets.children.iterate(b=>{if(b && (b.x<-50||b.x>MAP_SIZE+50||b.y<-50||b.y>MAP_SIZE+50)) b.destroy();});
 }
 
 function shoot(pointer,scene){
-  if(isPaused) return;
-  const now = scene.time.now;
-  if(now-lastFired<200) return;
-  lastFired=now;
-  const bullet = bullets.create(player.x,player.y,'bullet');
-  const angle = Phaser.Math.Angle.Between(player.x,player.y,pointer.worldX,pointer.worldY);
-  scene.physics.velocityFromRotation(angle,600,bullet.body.velocity);
-  bullet.setRotation(angle+Math.PI/2);
+if(isPaused) return;
+const now = scene.time.now;
+if(now-lastFired<200) return;
+lastFired=now;
+const bullet = bullets.create(player.x,player.y,'bullet');
+let angle;
+if(pointer.worldX!==undefined && pointer.worldY!==undefined){
+angle = Phaser.Math.Angle.Between(player.x,player.y,pointer.worldX,pointer.worldY);
+} else {
+angle = player.rotation - Math.PI/2;
+}
+scene.physics.velocityFromRotation(angle,600,bullet.body.velocity);
+bullet.setRotation(angle + Math.PI/2);
 }
 
 function spawnEnemy(){
-  const side = Phaser.Math.Between(0,3); let x,y;
-  if(side===0){x=-30;y=Phaser.Math.Between(0,MAP_SIZE);}
-  else if(side===1){x=MAP_SIZE+30;y=Phaser.Math.Between(0,MAP_SIZE);}
-  else if(side===2){x=Phaser.Math.Between(0,MAP_SIZE);y=-30;}
-  else{x=Phaser.Math.Between(0,MAP_SIZE);y=MAP_SIZE+30;}
-  const e = enemies.create(x,y,'enemy'); e.setCircle(14); e.hp=1;
+const side = Phaser.Math.Between(0,3); let x,y;
+if(side===0){x=-30;y=Phaser.Math.Between(0,MAP_SIZE);}
+else if(side===1){x=MAP_SIZE+30;y=Phaser.Math.Between(0,MAP_SIZE);}
+else if(side===2){x=Phaser.Math.Between(0,MAP_SIZE);y=-30;}
+else{x=Phaser.Math.Between(0,MAP_SIZE);y=MAP_SIZE+30;}
+const e = enemies.create(x,y,'enemy'); e.setCircle(14); e.hp=1;
 
-  // ajouter nom au-dessus
-  e.name = "Bot";
-  e.text = e.scene.add.text(e.x,e.y-25,e.name,{font:"14px Arial",fill:"#fff"}).setOrigin(0.5);
-  e.update = function(){ this.text.setPosition(this.x,this.y-25);}
+// nom au-dessus
+e.name = "Bot";
+e.text = e.scene.add.text(e.x,e.y-25,e.name,{font:"14px Arial",fill:"#fff"}).setOrigin(0.5);
+e.update = function(){ this.text.setPosition(this.x,this.y-25);}
 }
 
 function onBulletHitEnemy(bullet,enemy){ bullet.destroy(); enemy.hp-=1; if(enemy.hp<=0){ enemy.destroy(); enemy.text.destroy(); updateScore(10);} }
-function onPlayerHit(playerObj,enemy){ enemy.destroy(); enemy.text.destroy(); if(!invincible) updateHP(-20); playerObj.scene.cameras.main.flash(200,255,80,80); }
+function onPlayerHit(playerObj,enemy){ enemy.destroy(); if(enemy.text) enemy.text.destroy(); if(!invincible) updateHP(-20); playerObj.scene.cameras.main.flash(200,255,80,80); }
 
 function updateScore(delta){ score=Math.max(0,score+delta); document.getElementById('score').innerText='Score: '+score; }
 function updateHP(delta){
-  hp=Math.max(0,Math.min(hpMax,hp+delta));
-  document.getElementById('hpFill').style.width=(hp/hpMax*100)+'%';
-  if(hp<=0){
-    isPaused=true;
-    document.getElementById("hud").style.display="none";
-    document.getElementById("deathScreen").style.display="flex";
-    document.getElementById("finalScore").innerText="Ton score: "+score;
-  }
+hp=Math.max(0,Math.min(hpMax,hp+delta));
+document.getElementById('hpFill').style.width=(hp/hpMax*100)+'%';
+if(hp<=0){
+isPaused=true;
+document.getElementById("hud").style.display="none";
+document.getElementById("deathScreen").style.display="flex";
+document.getElementById("finalScore").innerText="Ton score: "+score;
+}
 }
 
 function restart(scene){
-  enemies.clear(true,true);
-  bullets.clear(true,true);
-  player.x = MAP_SIZE/2; player.y = MAP_SIZE/2;
-  score=0; updateScore(0); hp=hpMax; updateHP(0);
-  isPaused=false;
+enemies.clear(true,true);
+bullets.clear(true,true);
+player.x = MAP_SIZE/2; player.y = MAP_SIZE/2;
+score=0; updateScore(0); hp=hpMax; updateHP(0);
+isPaused=false;
 }
 
 function togglePause(scene){ isPaused=!isPaused; document.getElementById('pause').innerText=isPaused?'Resume':'Pause'; }
