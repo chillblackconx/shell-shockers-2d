@@ -159,6 +159,30 @@
       });
     }
 
+    function drawEntity(e){
+      // œuf (cercle)
+      ctx.beginPath();
+      ctx.arc(e.x+e.w/2, e.y+e.h/2, e.w/2, 0, Math.PI*2);
+      ctx.fillStyle = e.color;
+      ctx.fill();
+
+      // barre de vie au-dessus
+      let barWidth = e.w;
+      let barHeight = 5;
+      let hpRatio = e.hp / 100;
+      ctx.fillStyle = "red";
+      ctx.fillRect(e.x, e.y - 10, barWidth, barHeight);
+      ctx.fillStyle = "lime";
+      ctx.fillRect(e.x, e.y - 10, barWidth * hpRatio, barHeight);
+
+      // pseudo joueur principal
+      if(e === player){
+        ctx.fillStyle = "white";
+        ctx.font = "12px Arial";
+        ctx.fillText(document.getElementById("username").value || "Moi", e.x, e.y - 20);
+      }
+    }
+
     function draw(){
       ctx.clearRect(0,0,canvas.width,canvas.height);
 
@@ -184,14 +208,8 @@
 
       // HUD
       ctx.fillStyle="white";
+      ctx.font="14px Arial";
       ctx.fillText("HP: "+player.hp,20,20);
-    }
-
-    function drawEntity(e){
-      ctx.beginPath();
-      ctx.arc(e.x+e.w/2,e.y+e.h/2,e.w/2,0,Math.PI*2);
-      ctx.fillStyle=e.color;
-      ctx.fill();
     }
 
     function gameLoop(){
