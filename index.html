@@ -12,7 +12,7 @@ html,body { height:100%; margin:0; background:#0b1020; }
 #hpBar { width:150px; height:16px; border:1px solid #fff; margin-top:6px; }
 #hpFill { height:100%; background:#4caf50; width:100%; }
 
-/* login & death screen */
+/* login & death & menu */
 #login, #menu, #deathScreen {
 position: absolute; top:0; left:0; right:0; bottom:0;
 background: rgba(0,0,0,0.8); color:white;
@@ -63,7 +63,6 @@ const WIDTH = 1280, HEIGHT = 720, MAP_SIZE = 2000;
 let player, cursors, bullets, enemies, lastFired = 0, score = 0;
 let hp = 100, hpMax = 100, isPaused = false;
 let username = "", invincible = false;
-let bots = [];
 
 const config = {
 type: Phaser.AUTO,
@@ -117,6 +116,7 @@ g2.clear(); g2.fillStyle(0xff9999,1); g2.fillEllipse(16,16,26,32);
 g2.lineStyle(2,0x770000,1); g2.strokeTriangle(6,8,26,8,16,24);
 g2.generateTexture('enemy',32,32);
 
+// player
 player = this.physics.add.sprite(MAP_SIZE/2, MAP_SIZE/2,'egg');
 player.setCollideWorldBounds(true); player.setDrag(600,600); player.setMaxVelocity(300);
 
@@ -130,8 +130,14 @@ enemies = this.physics.add.group();
 cursors = this.input.keyboard.createCursorKeys();
 this.input.keyboard.addKeys('W,A,S,D');
 
-// tir clavier ESPACE
-this.input.keyboard.on('keydown-SPACE',()=>shoot({worldX: player.x, worldY: player.y},this));
+// tir souris
+this.input.on('pointerdown', pointer => shoot(pointer, this));
+
+// tir barre espace
+this.input.keyboard.on('keydown-SPACE', () => {
+    shoot({worldX: player.x + Math.cos(player.rotation - Math.PI/2)*1000,
+           worldY: player.y + Math.sin(player.rotation - Math.PI/2)*1000}, this);
+});
 
 // spawn enemies/bots
 this.time.addEvent({delay:1500, callback:spawnEnemy, callbackScope:this, loop:true});
@@ -139,7 +145,6 @@ this.time.addEvent({delay:1500, callback:spawnEnemy, callbackScope:this, loop:tr
 this.physics.add.overlap(bullets,enemies,onBulletHitEnemy,null,this);
 this.physics.add.overlap(player,enemies,onPlayerHit,null,this);
 
-this.input.on('pointerdown',(pointer)=>shoot(pointer,this));
 document.getElementById('restart').onclick = () => restart(this);
 document.getElementById('pause').onclick = () => togglePause(this);
 
@@ -148,6 +153,13 @@ updateScore(0); updateHP(0);
 
 function update(time){
 if(isPaused) return;
+
+// rotation joueur vers souris
+const pointer = this.input.activePointer;
+const angle = Phaser.Math.Angle.Between(player.x,player.y,pointer.worldX,pointer.worldY);
+player.setRotation(angle + Math.PI/2);
+
+// mouvements joueur
 const keys = this.input.keyboard.addKeys('W,A,S,D');
 let vx=0,vy=0;
 if(keys.A.isDown||cursors.left.isDown) vx-=220;
@@ -156,26 +168,28 @@ if(keys.W.isDown||cursors.up.isDown) vy-=220;
 if(keys.S.isDown||cursors.down.isDown) vy+=220;
 player.setVelocity(vx,vy);
 
-const pointer = this.input.activePointer;
-const angle = Phaser.Math.Angle.Between(player.x,player.y,pointer.worldX,pointer.worldY);
-player.setRotation(angle+Math.PI/2);
+// bots suivent joueur
+enemies.children.iterate(e=>{
+if(e){ 
+  this.physics.moveToObject(e,player,80); 
+  if(e.text) e.update();
+}
+});
 
-enemies.children.iterate(e=>{if(e) this.physics.moveToObject(e,player,80); if(e.text)e.update();});
-bullets.children.iterate(b=>{if(b && (b.x<-50||b.x>MAP_SIZE+50||b.y<-50||b.y>MAP_SIZE+50)) b.destroy();});
+// bullets
+bullets.children.iterate(b=>{
+if(b && (b.x<-50||b.x>MAP_SIZE+50||b.y<-50||b.y>MAP_SIZE+50)) b.destroy();
+});
 }
 
 function shoot(pointer,scene){
 if(isPaused) return;
 const now = scene.time.now;
-if(now-lastFired<200) return;
+if(now - lastFired < 200) return;
 lastFired=now;
+
 const bullet = bullets.create(player.x,player.y,'bullet');
-let angle;
-if(pointer.worldX!==undefined && pointer.worldY!==undefined){
-angle = Phaser.Math.Angle.Between(player.x,player.y,pointer.worldX,pointer.worldY);
-} else {
-angle = player.rotation - Math.PI/2;
-}
+const angle = Phaser.Math.Angle.Between(player.x,player.y,pointer.worldX,pointer.worldY);
 scene.physics.velocityFromRotation(angle,600,bullet.body.velocity);
 bullet.setRotation(angle + Math.PI/2);
 }
@@ -187,15 +201,27 @@ else if(side===1){x=MAP_SIZE+30;y=Phaser.Math.Between(0,MAP_SIZE);}
 else if(side===2){x=Phaser.Math.Between(0,MAP_SIZE);y=-30;}
 else{x=Phaser.Math.Between(0,MAP_SIZE);y=MAP_SIZE+30;}
 const e = enemies.create(x,y,'enemy'); e.setCircle(14); e.hp=1;
-
-// nom au-dessus
 e.name = "Bot";
 e.text = e.scene.add.text(e.x,e.y-25,e.name,{font:"14px Arial",fill:"#fff"}).setOrigin(0.5);
 e.update = function(){ this.text.setPosition(this.x,this.y-25);}
 }
 
-function onBulletHitEnemy(bullet,enemy){ bullet.destroy(); enemy.hp-=1; if(enemy.hp<=0){ enemy.destroy(); enemy.text.destroy(); updateScore(10);} }
-function onPlayerHit(playerObj,enemy){ enemy.destroy(); if(enemy.text) enemy.text.destroy(); if(!invincible) updateHP(-20); playerObj.scene.cameras.main.flash(200,255,80,80); }
+function onBulletHitEnemy(bullet,enemy){ 
+bullet.destroy(); 
+enemy.hp-=1; 
+if(enemy.hp<=0){ 
+enemy.destroy(); 
+if(enemy.text) enemy.text.destroy(); 
+updateScore(10);
+} 
+}
+
+function onPlayerHit(playerObj,enemy){ 
+enemy.destroy(); 
+if(enemy.text) enemy.text.destroy(); 
+if(!invincible) updateHP(-20); 
+playerObj.scene.cameras.main.flash(200,255,80,80); 
+}
 
 function updateScore(delta){ score=Math.max(0,score+delta); document.getElementById('score').innerText='Score: '+score; }
 function updateHP(delta){
@@ -217,9 +243,12 @@ score=0; updateScore(0); hp=hpMax; updateHP(0);
 isPaused=false;
 }
 
-function togglePause(scene){ isPaused=!isPaused; document.getElementById('pause').innerText=isPaused?'Resume':'Pause'; }
-
-function respawn(){ document.getElementById("deathScreen").style.display="none"; startGame(); }
+function togglePause(scene){ 
+isPaused=!isPaused; 
+document.getElementById('pause').innerText=isPaused?'Resume':'Pause'; 
+scene.physics.world.isPaused = isPaused;
+scene.time.paused = isPaused;
+}
 
 window.addEventListener('resize',()=>{game.scale.resize(Math.min(window.innerWidth,1280),Math.min(window.innerHeight,720));});
 </script>
